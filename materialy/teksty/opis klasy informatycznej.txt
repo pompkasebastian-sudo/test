@@ -1,0 +1,26 @@
+Stwórz bardzo realistyczną, fotorealistyczną grafikę dużej, nowoczesnej klasy informatycznej w szkole. Widok z tyłu sali, na wprost tablicy, z szerokim kątem widzenia, tak aby było widać całą klasę.
+
+**Układ sali:**
+- Klasa jest duża, przestronna i jasna.
+- Po prawej stronie znajdują się duże okna z szarymi roletami.
+- Lewa ściana jest całkowicie biała.
+- Ściana na końcu sali jest szara, a pozostałe ściany są białe.
+- Na szarej ścianie znajduje się duża biała tablica.
+- Po lewej stronie tablicy wisi duży ekran wyświetlający interfejs GitHub.
+- Na suficie znajduje się projektor i nowoczesne oświetlenie LED.
+
+**Biurka i komputery — bardzo ważne:**
+- Dokładnie 8 biurek, po 4 biurka po lewej stronie i 4 biurka po prawej stronie sali.
+- Biurka są ustawione w dwóch równych rzędach, wzdłuż ścian, z szerokim przejściem pośrodku.
+- Na KAŻDYM biurku znajdują się dokładnie 2 komputery stacjonarne z monitorami, klawiaturami i myszkami.
+- Łącznie 16 stanowisk komputerowych.
+- Przy KAŻDYM komputerze siedzi jeden uczeń, czyli 2 uczniów przy każdym biurku.
+- Łącznie 16 uczniów, każdy siedzi na osobnym krześle przed swoim komputerem.
+- Dodatkowo z przodu sali znajduje się jeden nauczyciel, który stoi obok tablicy i tłumaczy zagadnienia związane z programowaniem.
+
+**Wygląd i atmosfera:**
+Uczniowie pracują nad projektami programistycznymi i korzystają z GitHub. Na monitorach widać realistyczne edytory kodu, repozytoria, gałęzie, commity i interfejsy GitHub w ciemnym motywie. Nauczyciel wskazuje na tablicę, na której narysowano prosty schemat działania GitHub.
+
+Biurka są z jasnego drewna, krzesła czarne i ergonomiczne, pod biurkami mogą znajdować się plecaki. Podłoga jest szara. W sali panuje porządek, a naturalne światło wpada przez okna z roletami.
+
+**Styl grafiki:** profesjonalna fotografia wnętrza, realistyczne proporcje, naturalne oświetlenie, wysoka szczegółowość, szeroki kadr 16:9, perspektywa z tyłu sali, symetryczna
