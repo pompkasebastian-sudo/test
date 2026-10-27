@@ -1,0 +1,11 @@
+**Prompt:**
+
+Bardzo realistyczne zdjęcie młodej kobiety siedzącej na kamienistym brzegu jeziora w Alpach Austriackich, widzianej od tyłu. Kobieta ma długie, proste, jasnobrązowe włosy sięgające dolnej części pleców. Ubrana jest w jaskrawoczerwoną koszulkę z krótkim rękawem, dopasowane czarne spodnie i brązowe buty trekkingowe. Siedzi na pochyłym brzegu, ma zgięte nogi i opiera się na obu rękach, spokojnie podziwiając zapierający dech w piersiach górski krajobraz.
+
+Na pierwszym planie rozciąga się szeroki pas kamienistego brzegu pokrytego szarymi, beżowymi i brązowymi otoczakami oraz nierównymi kamieniami o bardzo szczegółowej fakturze i naturalnym zróżnicowaniu wielkości. Pośrodku kadru znajduje się spokojne, ciemnoturkusowe jezioro alpejskie, którego powierzchnię pokrywają delikatne fale odbijające pochmurne niebo. Po drugiej stronie jeziora gęste, ciemnozielone lasy iglaste porastają strome zbocza gór, wznoszące się ku potężnym, surowym alpejskim szczytom z płatami śniegu i odsłoniętymi, jasnoszarymi skałami. W lewym górnym rogu, na odległym zboczu góry, ledwo widoczna jest niewielka czerwona metalowa wieża.
+
+Fotografia krajobrazowa wykonana obiektywem szerokokątnym, pozioma kompozycja w proporcjach 3:2. Aparat ustawiony nieco powyżej kamienistego brzegu. Ujęcie z dalszej odległości, kobieta umieszczona nieco na prawo od środka kadru, w jego dolnej połowie. Rozległy las i góry dominują w tle. Miękkie, rozproszone światło dzienne, lekko melancholijny nastrój, realistyczne, stonowane kolory, głęboka zieleń lasu, chłodna, ciemna woda, szczegółowo odwzorowane kamienie i naturalne cienie. Filmowa kompozycja, profesjonalna fotografia podróżnicza, fotorealizm, wysoki zakres dynamiki, ostre szczegóły otoczenia, autentyczne tekstury fotograficzne, bez sztucznych efektów.
+
+**Negatywny prompt:**
+
+Kreskówka, ilustracja, malarstwo, grafika komputerowa, render 3D, przesycone kolory, nierealistyczne oświetlenie, rozmyty obraz, zniekształcona anatomia, dodatkowe kończyny, zduplikowane osoby, dodatkowe palce, nienaturalne włosy, budynki, miasto, roślinność tropikalna, słoneczna plaża, tekst, znak wodny, logo.
