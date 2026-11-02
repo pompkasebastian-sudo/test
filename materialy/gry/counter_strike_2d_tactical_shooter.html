@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS 2D: Tactical Ops</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&display=swap');
+        
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            font-family: 'Chakra Petch', sans-serif;
+            background-color: #0c0e12;
+            color: #e2e8f0;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+        /* Custom CS Dark Style Scrollbar & UI Glass */
+        .cs-panel {
+            background: rgba(15, 20, 28, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        .cs-btn {
+            background: linear-gradient(180deg, rgba(40, 50, 65, 0.8) 0%, rgba(20, 26, 35, 0.9) 100%);
+            border: 1px solid rgba(255, 170, 0, 0.2);
+            transition: all 0.15s ease;
+        }
+        .cs-btn:hover {
+            border-color: rgba(255, 170, 0, 0.8);
+            background: linear-gradient(180deg, rgba(60, 75, 95, 0.9) 0%, rgba(30, 38, 50, 1) 100%);
+            box-shadow: 0 0 12px rgba(255, 170, 0, 0.3);
+        }
+        .cs-btn-ct:hover {
+            border-color: rgba(59, 130, 246, 0.8);
+            box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .ct-color { color: #5d9cec; }
+        .t-color { color: #e8a838; }
+        .bg-ct { background-color: #2b5278; }
+        .bg-t { background-color: #8a6428; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-center items-center relative select-none">
+
+    <!-- Game Viewport Container -->
+    <div id="game-container" class="relative w-full h-full flex justify-center items-center overflow-hidden">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Flashbang Screen Effect Overlay -->
+        <div id="flash-overlay" class="absolute inset-0 bg-white opacity-0 pointer-events-none transition-opacity duration-75"></div>
+
+        <!-- HUD Layer -->
+        <div id="hud-layer" class="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 hidden">
+            
+            <!-- TOP BAR: Scores, Round Timer, Alive Status -->
+            <div class="w-full flex justify-between items-start">
+                
+                <!-- Terrorist Team Status -->
+                <div class="flex items-center gap-3 cs-panel p-2 px-4 rounded-lg border-l-4 border-amber-500">
+                    <i class="fa-solid fa-bomb text-amber-500 text-2xl"></i>
+                    <div>
+                        <div class="text-xs uppercase text-amber-400 font-bold tracking-wider">Terrorists</div>
+                        <div id="score-t" class="text-2xl font-extrabold text-white leading-none">0</div>
+                    </div>
+                    <div id="alive-t" class="flex gap-1 ml-3"></div>
+                </div>
+
+                <!-- Match Timer & Bomb State -->
+                <div class="cs-panel px-6 py-2 rounded-b-lg flex flex-col items-center border-t-0 border-amber-500/40">
+                    <div id="round-state" class="text-xs font-bold text-gray-400 tracking-widest uppercase mb-0.5">ROUND 1</div>
+                    <div id="match-timer" class="text-3xl font-black tracking-wider text-amber-400">01:50</div>
+                    <div id="bomb-status" class="text-xs font-bold text-red-500 hidden animate-pulse mt-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i> BOMB PLANTED</div>
+                </div>
+
+                <!-- Counter-Terrorist Team Status -->
+                <div class="flex items-center gap-3 cs-panel p-2 px-4 rounded-lg border-r-4 border-blue-500 flex-row-reverse">
+                    <i class="fa-solid fa-shield-halved text-blue-400 text-2xl"></i>
+                    <div class="text-right">
+                        <div class="text-xs uppercase text-blue-400 font-bold tracking-wider">Counter-Terrorists</div>
+                        <div id="score-ct" class="text-2xl font-extrabold text-white leading-none">0</div>
+                    </div>
+                    <div id="alive-ct" class="flex gap-1 mr-3"></div>
+                </div>
+            </div>
+
+            <!-- MID RIGHT: Kill Feed Log -->
+            <div id="kill-feed" class="absolute top-20 right-4 flex flex-col gap-1.5 items-end max-w-sm pointer-events-none"></div>
+
+            <!-- ACTION PROMPTS (Center Screen) -->
+            <div id="action-prompt" class="absolute top-2/3 left-1/2 -translate-x-1/2 -translate-y-1/2 cs-panel px-6 py-2 rounded-full text-center hidden border border-amber-500/50">
+                <span id="action-text" class="text-sm font-bold tracking-wider text-amber-400">HOLD [E] TO PLANT BOMB</span>
+                <div class="w-full bg-gray-700 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                    <div id="action-progress" class="bg-amber-500 h-full w-0 transition-all duration-75"></div>
+                </div>
+            </div>
+
+            <!-- BOTTOM HUD: Radar, Health/Armor, Ammo & Weapon Info -->
+            <div class="w-full flex justify-between items-end">
+                
+                <!-- Health, Armor, Money -->
+                <div class="flex gap-3 items-end">
+                    <!-- Radar Canvas -->
+                    <div class="cs-panel p-1 rounded-xl border border-gray-700/60 overflow-hidden relative">
+                        <canvas id="radarCanvas" width="140" height="140" class="rounded-lg"></canvas>
+                        <div class="absolute inset-0 border border-white/10 rounded-lg pointer-events-none"></div>
+                    </div>
+
+                    <div class="cs-panel p-3 rounded-xl flex items-center gap-4">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-heart text-red-500 text-xl"></i>
+                            <div>
+                                <div class="text-[10px] text-gray-400 uppercase font-bold">Health</div>
+                                <div id="hp-val" class="text-2xl font-black text-white leading-none">100</div>
+                            </div>
+                        </div>
+                        <div class="h-8 w-[1px] bg-gray-700"></div>
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-shield text-blue-400 text-xl"></i>
+                            <div>
+                                <div class="text-[10px] text-gray-400 uppercase font-bold">Armor</div>
+                                <div id="armor-val" class="text-2xl font-black text-white leading-none">100</div>
+                            </div>
+                        </div>
+                        <div class="h-8 w-[1px] bg-gray-700"></div>
+                        <div class="flex items-center gap-1.5 text-emerald-400">
+                            <i class="fa-solid fa-dollar-sign text-lg"></i>
+                            <div id="money-val" class="text-2xl font-black leading-none">16000</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Weapon Slot Indicators & Ammo -->
+                <div class="cs-panel p-3 rounded-xl flex items-center gap-6">
+                    <!-- Weapon Selection List -->
+                    <div id="weapon-slots" class="flex gap-2 text-xs font-bold text-gray-400">
+                        <div id="slot-1" class="px-2.5 py-1 rounded bg-gray-800 border border-gray-700">1: AK-47</div>
+                        <div id="slot-2" class="px-2.5 py-1 rounded bg-gray-800 border border-gray-700">2: Deagle</div>
+                        <div id="slot-3" class="px-2.5 py-1 rounded bg-gray-800 border border-gray-700">3: Knife</div>
+                        <div id="slot-4" class="px-2.5 py-1 rounded bg-gray-800 border border-gray-700">4: Grenade</div>
+                    </div>
+
+                    <div class="h-8 w-[1px] bg-gray-700"></div>
+
+                    <!-- Current Weapon Ammo -->
+                    <div class="text-right min-w-[80px]">
+                        <div id="active-weapon-name" class="text-xs font-bold text-amber-400 uppercase">AK-47</div>
+                        <div class="flex items-baseline justify-end gap-1">
+                            <span id="ammo-clip" class="text-3xl font-black text-white leading-none">30</span>
+                            <span class="text-gray-500 font-bold text-lg">/</span>
+                            <span id="ammo-reserve" class="text-lg font-bold text-gray-400">90</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BUY MENU OVERLAY -->
+        <div id="buy-menu" class="absolute inset-0 bg-black/80 backdrop-blur-md flex justify-center items-center pointer-events-auto hidden z-40">
+            <div class="cs-panel p-6 rounded-2xl w-[650px] border border-amber-500/30">
+                <div class="flex justify-between items-center mb-4 border-b border-gray-700 pb-3">
+                    <h2 class="text-xl font-extrabold tracking-wider text-amber-400 flex items-center gap-2">
+                        <i class="fa-solid fa-cart-shopping"></i> EQUIPMENT SHOP
+                    </h2>
+                    <span class="text-xs text-gray-400">Press [B] to close</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <!-- Primaries -->
+                    <div class="space-y-2">
+                        <div class="text-xs uppercase font-bold text-gray-400 tracking-wider">Rifles & Snipers</div>
+                        <button onclick="buyWeapon('ak47')" class="cs-btn w-full p-2.5 rounded-lg flex justify-between items-center text-left">
+                            <div>
+                                <div class="font-bold text-white text-sm">AK-47</div>
+                                <div class="text-[11px] text-gray-400">High Damage, Heavy Recoil</div>
+                            </div>
+                            <span class="text-emerald-400 font-extrabold text-sm">$2700</span>
+                        </button>
+                        <button onclick="buyWeapon('m4a4')" class="cs-btn w-full p-2.5 rounded-lg flex justify-between items-center text-left">
+                            <div>
+                                <div class="font-bold text-white text-sm">M4A4</div>
+                                <div class="text-[11px] text-gray-400">High Accuracy, Silenced</div>
+                            </div>
+                            <span class="text-emerald-400 font-extrabold text-sm">$3100</span>
+                        </button>
+                        <button onclick="buyWeapon('awp')" class="cs-btn w-full p-2.5 rounded-lg flex justify-between items-center text-left">
+                            <div>
+                                <div class="font-bold text-white text-sm">AWP</div>
+                                <div class="text-[11px] text-gray-400">One-Shot Sniper Kill</div>
+                            </div>
+                            <span class="text-emerald-400 font-extrabold text-sm">$4750</span>
+                        </button>
+                    </div>
+
+                    <!-- Secondaries & Equipment -->
+                    <div class="space-y-2">
+                        <div class="text-xs uppercase font-bold text-gray-400 tracking-wider">Pistols & Utilities</div>
+                        <button onclick="buyWeapon('deagle')" class="cs-btn w-full p-2.5 rounded-lg flex justify-between items-center text-left">
+                            <div>
+                                <div class="font-bold text-white text-sm">Desert Eagle</div>
+                                <div class="text-[11px] text-gray-400">Heavy Secondary Pistol</div>
+                            </div>
+                            <span class="text-emerald-400 font-extrabold text-sm">$700</span>
+                        </button>
+                        <button onclick="buyEquipment('he')" class="cs-btn w-full p-2.5 rounded-lg flex justify-between items-center text-left">
+                            <div>
+                                <div class="font-bold text-white text-sm">HE Grenade</div>
+                                <div class="text-[11px] text-gray-400">High Explosive Blast</div>
+                            </div>
+                            <span class="text-emerald-400 font-extrabold text-sm">$300</span>
+                        </button>
+                        <button onclick="buyEquipment('flash')" class="cs-btn w-full p-2.5 rounded-lg flex justify-between items-center text-left">
+                            <div>
+                                <div class="font-bold text-white text-sm">Flashbang</div>
+                                <div class="text-[11px] text-gray-400">Blinds Enemies Temporarily</div>
+                            </div>
+                            <span class="text-emerald-400 font-extrabold text-sm">$200</span>
+                        </button>
+                        <button onclick="buyEquipment('armor')" class="cs-btn w-full p-2.5 rounded-lg flex justify-between items-center text-left">
+                            <div>
+                                <div class="font-bold text-white text-sm">Kevlar + Helmet</div>
+                                <div class="text-[11px] text-gray-400">Reduces Incoming Damage</div>
+                            </div>
+                            <span class="text-emerald-400 font-extrabold text-sm">$1000</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-gray-700/60 flex justify-between items-center text-xs text-gray-400">
+                    <div>Your Balance: <span id="buy-balance" class="text-emerald-400 font-bold">$16000</span></div>
+                    <div>Press <kbd class="px-1.5 py-0.5 bg-gray-800 rounded border border-gray-600">B</kbd> to Return</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN MENU OVERLAY -->
+        <div id="main-menu" class="absolute inset-0 bg-black/90 backdrop-blur-lg flex flex-col justify-center items-center z-50 pointer-events-auto">
+            <div class="cs-panel p-8 rounded-3xl max-w-lg w-full text-center border border-amber-500/30">
+                <div class="flex justify-center mb-3">
+                    <span class="inline-flex items-center justify-center p-3 bg-amber-500/10 rounded-2xl border border-amber-500/30">
+                        <i class="fa-solid fa-crosshairs text-4xl text-amber-500 animate-spin-slow"></i>
+                    </span>
+                </div>
+                <h1 class="text-4xl font-black tracking-widest text-white mb-1">COUNTER-STRIKE 2D</h1>
+                <p class="text-xs text-amber-400/80 uppercase tracking-widest font-bold mb-6">Tactical Bomb Defusal Warfare</p>
+
+                <div class="space-y-3 mb-6">
+                    <label class="block text-xs uppercase font-bold text-gray-400 tracking-wider text-left">Select Faction</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="select-t" onclick="selectFaction('T')" class="cs-btn p-3 rounded-xl flex items-center justify-center gap-2 border-2 border-amber-500 text-amber-400 font-bold text-sm">
+                            <i class="fa-solid fa-bomb"></i> Terrorist (T)
+                        </button>
+                        <button id="select-ct" onclick="selectFaction('CT')" class="cs-btn cs-btn-ct p-3 rounded-xl flex items-center justify-center gap-2 border-2 border-transparent text-gray-400 font-bold text-sm">
+                            <i class="fa-solid fa-shield-halved"></i> Counter-Terrorist (CT)
+                        </button>
+                    </div>
+                </div>
+
+                <button onclick="startGame()" class="w-full py-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-lg rounded-xl shadow-lg shadow-amber-500/25 transition-all duration-150 uppercase tracking-wider">
+                    DEPLOYS TO MATCH
+                </button>
+
+                <div class="mt-6 pt-4 border-t border-gray-800 text-left text-xs text-gray-400 grid grid-cols-2 gap-2">
+                    <div><span class="text-amber-400 font-bold">WASD</span> : Move</div>
+                    <div><span class="text-amber-400 font-bold">MOUSE</span> : Aim / Shoot</div>
+                    <div><span class="text-amber-400 font-bold">R</span> : Reload Weapon</div>
+                    <div><span class="text-amber-400 font-bold">1 - 4</span> : Switch Slots</div>
+                    <div><span class="text-amber-400 font-bold">E</span> : Plant / Defuse C4</div>
+                    <div><span class="text-amber-400 font-bold">B</span> : Open Buy Menu</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ROUND WIN OVERLAY -->
+        <div id="round-banner" class="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 cs-panel px-10 py-4 rounded-2xl border-2 text-center hidden z-30 transition-all duration-300 transform scale-95 opacity-0">
+            <h2 id="banner-title" class="text-3xl font-black tracking-widest uppercase">TERRORISTS WIN</h2>
+            <p id="banner-sub" class="text-xs text-gray-300 mt-1 font-semibold">Target Eliminated</p>
+        </div>
+    </div>
+
+    <!-- MAIN GAME ENGINE SCRIPT -->
+    <script>
+        // --- AUDIO SYNTHESIZER (WEB AUDIO API - NO EXTERNAL ASSETS NEEDED) ---
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+            playGunshot(type) {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                const filter = this.ctx.createBiquadFilter();
+
+                // White noise buffer for realistic gunfire crack
+                const bufferSize = this.ctx.sampleRate * 0.15;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const noiseFilter = this.ctx.createBiquadFilter();
+                noiseFilter.type = 'bandpass';
+
+                if (type === 'ak47') {
+                    noiseFilter.frequency.value = 1000;
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+                } else if (type === 'm4a4') {
+                    noiseFilter.frequency.value = 1400;
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
+                } else if (type === 'awp') {
+                    noiseFilter.frequency.value = 600;
+                    gain.gain.setValueAtTime(0.8, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                } else { // Deagle / default
+                    noiseFilter.frequency.value = 1200;
+                    gain.gain.setValueAtTime(0.35, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                }
+
+                noise.connect(noiseFilter);
+                noiseFilter.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start(now);
+            }
+            playExplosion() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const bufferSize = this.ctx.sampleRate * 0.8;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(800, now);
+                filter.frequency.exponentialRampToValueAtTime(30, now + 0.7);
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.9, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start(now);
+            }
+            playBeep(freq = 800, duration = 0.08) {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            }
+            playFlashbang() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(3500, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 2.5);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 2.5);
+            }
+        }
+
+        const soundFX = new SoundFX();
+
+        // --- WEAPON DATA DEFINITIONS ---
+        const WEAPONS = {
+            ak47: { id: 'ak47', name: 'AK-47', slot: 1, damage: 36, fireRate: 100, clipSize: 30, maxReserve: 90, reloadTime: 2300, recoil: 0.08, spread: 0.04, speed: 1.0, color: '#e8a838' },
+            m4a4: { id: 'm4a4', name: 'M4A4', slot: 1, damage: 31, fireRate: 90, clipSize: 30, maxReserve: 90, reloadTime: 2100, recoil: 0.05, spread: 0.025, speed: 1.0, color: '#5d9cec' },
+            awp: { id: 'awp', name: 'AWP', slot: 1, damage: 115, fireRate: 1250, clipSize: 5, maxReserve: 30, reloadTime: 3200, recoil: 0.25, spread: 0.005, speed: 0.85, color: '#a0aec0' },
+            deagle: { id: 'deagle', name: 'Desert Eagle', slot: 2, damage: 53, fireRate: 250, clipSize: 7, maxReserve: 35, reloadTime: 1800, recoil: 0.14, spread: 0.035, speed: 1.0, color: '#cbd5e0' },
+            knife: { id: 'knife', name: 'Knife', slot: 3, damage: 45, fireRate: 400, clipSize: Infinity, maxReserve: Infinity, reloadTime: 0, recoil: 0, spread: 0, speed: 1.15, color: '#e2e8f0' },
+            he: { id: 'he', name: 'HE Grenade', slot: 4, damage: 85, fireRate: 1000, clipSize: 1, maxReserve: 1, reloadTime: 0, recoil: 0, spread: 0, speed: 1.0, color: '#ef4444' },
+            flash: { id: 'flash', name: 'Flashbang', slot: 4, damage: 0, fireRate: 1000, clipSize: 1, maxReserve: 2, reloadTime: 0, recoil: 0, spread: 0, speed: 1.0, color: '#38bdf8' }
+        };
+
+        // --- MAP SETUP & OBSTACLES ---
+        const MAP_SIZE = { width: 2400, height: 1800 };
+
+        // De_Dust2 Style Layout Geometry
+        const MAP_WALLS = [
+            // Map Boundaries
+            { x: 0, y: 0, w: MAP_SIZE.width, h: 40 },
+            { x: 0, y: MAP_SIZE.height - 40, w: MAP_SIZE.width, h: 40 },
+            { x: 0, y: 0, w: 40, h: MAP_SIZE.height },
+            { x: MAP_SIZE.width - 40, y: 0, w: 40, h: MAP_SIZE.height },
+
+            // T Spawn & Back Area Barriers
+            { x: 200, y: 400, w: 400, h: 40 },
+            { x: 600, y: 200, w: 40, h: 400 },
+
+            // Long A Corridor Walls
+            { x: 1400, y: 200, w: 40, h: 700 },
+            { x: 1600, y: 400, w: 400, h: 40 },
+
+            // B Site & Tunnels Structures
+            { x: 400, y: 1100, w: 450, h: 40 },
+            { x: 400, y: 1350, w: 40, h: 400 },
+
+            // Middle Doors / Mid Corridor Walls
+            { x: 1000, y: 600, w: 40, h: 500 },
+            { x: 1180, y: 800, w: 250, h: 40 },
+
+            // CT Spawn & Back Site Protection
+            { x: 1200, y: 1450, w: 600, h: 40 }
+        ];
+
+        // Cover Boxes / Crates
+        const MAP_CRATES = [
+            { x: 450, y: 480, w: 60, h: 60 },
+            { x: 1750, y: 280, w: 70, h: 70 },
+            { x: 1850, y: 300, w: 50, h: 50 },
+            { x: 480, y: 1420, w: 80, h: 80 },
+            { x: 580, y: 1440, w: 60, h: 60 },
+            { x: 1950, y: 1400, w: 90, h: 90 },
+            { x: 1100, y: 950, w: 50, h: 50 },
+            { x: 1480, y: 1050, w: 60, h: 60 }
+        ];
+
+        // Bomb Sites (A and B)
+        const BOMB_SITES = {
+            A: { x: 1850, y: 300, radius: 140, label: 'SITE A' },
+            B: { x: 520, y: 1420, radius: 140, label: 'SITE B' }
+        };
+
+        // --- GAME ENGINE STATE ---
+        let canvas, ctx, radarCanvas, radarCtx;
+        let selectedFaction = 'T';
+        let player = null;
+        let entities = [];
+        let bullets = [];
+        let grenades = [];
+        let particles = [];
+        let soundWaves = [];
+        let bomb = null; // { x, y, planted: bool, timer: float, planter: player, site: 'A'|'B' }
+
+        let keys = {};
+        let mousePos = { x: 0, y: 0, worldX: 0, worldY: 0 };
+        let camera = { x: 0, y: 0 };
+
+        let roundTimer = 110; // seconds
+        let roundActive = false;
+        let roundTimeInterval = null;
+        let score = { T: 0, CT: 0 };
+        let roundNumber = 1;
+
+        let buyMenuOpen = false;
+
+        // Player Class Definition
+        class Agent {
+            constructor(id, team, isBot = false, x = 0, y = 0) {
+                this.id = id;
+                this.team = team; // 'T' or 'CT'
+                this.isBot = isBot;
+                this.x = x;
+                this.y = y;
+                this.radius = 18;
+                this.angle = 0;
+                this.speed = 3.2;
+
+                this.health = 100;
+                this.armor = 0;
+                this.money = 800;
+                this.isDead = false;
+
+                // Inventory & Weapons
+                this.inventory = {
+                    1: { ...WEAPONS.ak47, clip: WEAPONS.ak47.clipSize, reserve: WEAPONS.ak47.maxReserve },
+                    2: { ...WEAPONS.deagle, clip: WEAPONS.deagle.clipSize, reserve: WEAPONS.deagle.maxReserve },
+                    3: { ...WEAPONS.knife, clip: Infinity, reserve: Infinity },
+                    4: null
+                };
+                if (team === 'CT') {
+                    this.inventory[1] = { ...WEAPONS.m4a4, clip: WEAPONS.m4a4.clipSize, reserve: WEAPONS.m4a4.maxReserve };
+                }
+
+                this.activeSlot = 1;
+                this.hasBomb = (team === 'T' && !isBot); // Give player T bomb by default
+                this.hasDefuseKit = (team === 'CT');
+
+                this.isReloading = false;
+                this.reloadEndTime = 0;
+                this.lastShotTime = 0;
+                this.flashDuration = 0;
+
+                // Action Timers
+                this.actionProgress = 0; // 0 to 100 for planting/defusing
+
+                // Bot AI Logic variables
+                this.aiTarget = null;
+                this.aiWaypoint = null;
+                this.aiState = 'PATROL'; // PATROL, ENGAGE, PLANT, DEFUSE
+                this.aiActionTimer = 0;
+            }
+
+            getActiveWeapon() {
+                return this.inventory[this.activeSlot];
+            }
+
+            takeDamage(amount, attacker) {
+                if (this.isDead) return;
+                let actualDamage = amount;
+                if (this.armor > 0) {
+                    actualDamage *= 0.65; // Armor damage mitigation
+                    this.armor = Math.max(0, this.armor - amount * 0.4);
+                }
+                this.health -= actualDamage;
+
+                // Blood particles
+                for (let i = 0; i < 6; i++) {
+                    particles.push(new Particle(this.x, this.y, '#dc2626', (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4, 15 + Math.random() * 15, 3));
+                }
+
+                if (this.health <= 0) {
+                    this.health = 0;
+                    this.isDead = true;
+                    addKillFeed(attacker ? attacker.name : 'World', this.name, attacker ? attacker.getActiveWeapon().name : 'Killed');
+
+                    // If carrying bomb, drop it
+                    if (this.hasBomb) {
+                        this.hasBomb = false;
+                        bomb = { x: this.x, y: this.y, planted: false, carrier: null };
+                    }
+
+                    // Reward attacker
+                    if (attacker && attacker.team !== this.team) {
+                        attacker.money += 300;
+                        if (attacker === player) updateHUD();
+                    }
+                    checkRoundEnd();
+                }
+                if (this === player) updateHUD();
+            }
+
+            reload() {
+                const gun = this.getActiveWeapon();
+                if (!gun || gun.clipSize === Infinity || this.isReloading) return;
+                if (gun.clip < gun.clipSize && gun.reserve > 0) {
+                    this.isReloading = true;
+                    this.reloadEndTime = Date.now() + gun.reloadTime;
+                }
+            }
+
+            update(dt) {
+                if (this.isDead) return;
+
+                // Handle Reload completion
+                if (this.isReloading) {
+                    if (Date.now() >= this.reloadEndTime) {
+                        const gun = this.getActiveWeapon();
+                        const needed = gun.clipSize - gun.clip;
+                        const available = Math.min(needed, gun.reserve);
+                        gun.clip += available;
+                        gun.reserve -= available;
+                        this.isReloading = false;
+                        if (this === player) updateHUD();
+                    }
+                }
+
+                // Handle Flashbang screen decay
+                if (this.flashDuration > 0) {
+                    this.flashDuration -= dt;
+                }
+
+                if (this.isBot) {
+                    this.updateBotAI(dt);
+                }
+            }
+
+            updateBotAI(dt) {
+                // Simple Bot Tactical AI Behavior
+                if (!player) return;
+
+                // Detect visible enemies
+                let enemyTarget = null;
+                let minDist = 700;
+
+                for (let other of entities) {
+                    if (other !== this && !other.isDead && other.team !== this.team) {
+                        let d = Math.hypot(other.x - this.x, other.y - this.y);
+                        if (d < minDist) {
+                            minDist = d;
+                            enemyTarget = other;
+                        }
+                    }
+                }
+
+                if (enemyTarget) {
+                    this.aiState = 'ENGAGE';
+                    this.angle = Math.atan2(enemyTarget.y - this.y, enemyTarget.x - this.x);
+
+                    // Shoot logic
+                    if (minDist < 500 && Math.random() < 0.08) {
+                        this.shoot(enemyTarget.x, enemyTarget.y);
+                    }
+
+                    // Move towards or circle enemy
+                    if (minDist > 180) {
+                        this.move(Math.cos(this.angle) * this.speed * 0.7, Math.sin(this.angle) * this.speed * 0.7);
+                    }
+                } else {
+                    // Objective/Patrol Mode
+                    this.aiState = 'PATROL';
+                    if (this.team === 'T' && bomb && bomb.planted) {
+                        // Protect bomb site
+                    } else if (this.team === 'CT' && bomb && bomb.planted) {
+                        // Move to bomb position to defuse
+                        let dBomb = Math.hypot(bomb.x - this.x, bomb.y - this.y);
+                        if (dBomb > 40) {
+                            let angleToBomb = Math.atan2(bomb.y - this.y, bomb.x - this.x);
+                            this.angle = angleToBomb;
+                            this.move(Math.cos(angleToBomb) * this.speed, Math.sin(angleToBomb) * this.speed);
+                        } else {
+                            // Defusing action by bot
+                            bomb.timer -= dt * 1.5; // Accelerate defuse
+                        }
+                    } else {
+                        // Patrol towards random bomb site
+                        const targetSite = BOMB_SITES.A;
+                        let angleToSite = Math.atan2(targetSite.y - this.y, targetSite.x - this.x);
+                        this.angle = angleToSite;
+                        this.move(Math.cos(angleToSite) * this.speed * 0.5, Math.sin(angleToSite) * this.speed * 0.5);
+                    }
+                }
+            }
+
+            move(vx, vy) {
+                let nextX = this.x + vx;
+                let nextY = this.y + vy;
+
+                // Wall Collision Check
+                for (let wall of MAP_WALLS) {
+                    if (nextX + this.radius > wall.x && nextX - this.radius < wall.x + wall.w &&
+                        this.y + this.radius > wall.y && this.y - this.radius < wall.y + wall.h) {
+                        nextX = this.x;
+                    }
+                    if (this.x + this.radius > wall.x && this.x - this.radius < wall.x + wall.w &&
+                        nextY + this.radius > wall.y && nextY - this.radius < wall.y + wall.h) {
+                        nextY = this.y;
+                    }
+                }
+
+                // Crate Collision Check
+                for (let crate of MAP_CRATES) {
+                    if (nextX + this.radius > crate.x && nextX - this.radius < crate.x + crate.w &&
+                        this.y + this.radius > crate.y && this.y - this.radius < crate.y + crate.h) {
+                        nextX = this.x;
+                    }
+                    if (this.x + this.radius > crate.x && this.x - this.radius < crate.x + crate.w &&
+                        nextY + this.radius > crate.y && nextY - this.radius < crate.y + crate.h) {
+                        nextY = this.y;
+                    }
+                }
+
+                this.x = nextX;
+                this.y = nextY;
+            }
+
+            shoot(targetX, targetY) {
+                if (this.isReloading) return;
+                const gun = this.getActiveWeapon();
+                if (!gun) return;
+
+                const now = Date.now();
+                if (now - this.lastShotTime < gun.fireRate) return;
+
+                if (gun.slot === 4) {
+                    // Throw Grenade
+                    this.throwGrenade(gun.id, targetX, targetY);
+                    this.inventory[4] = null;
+                    this.activeSlot = 1;
+                    if (this === player) updateHUD();
+                    return;
+                }
+
+                if (gun.clip <= 0) {
+                    this.reload();
+                    return;
+                }
+
+                gun.clip--;
+                this.lastShotTime = now;
+                soundFX.playGunshot(gun.id);
+
+                // Create Audio Visualizer Wave
+                soundWaves.push(new SoundWave(this.x, this.y));
+
+                // Recoil & Spread Calculations
+                let baseAngle = Math.atan2(targetY - this.y, targetX - this.x);
+                let spread = (Math.random() - 0.5) * gun.spread;
+                let finalAngle = baseAngle + spread;
+
+                if (gun.id === 'knife') {
+                    // Knife Melee Slash Attack
+                    for (let other of entities) {
+                        if (other !== this && !other.isDead && other.team !== this.team) {
+                            let dist = Math.hypot(other.x - this.x, other.y - this.y);
+                            if (dist < 50) {
+                                other.takeDamage(gun.damage, this);
+                            }
+                        }
+                    }
+                } else {
+                    // Spawn Bullet Ray
+                    bullets.push(new Bullet(this.x, this.y, finalAngle, gun.damage, this));
+                }
+
+                // Muzzle Flash Effect
+                particles.push(new Particle(this.x + Math.cos(this.angle) * 20, this.y + Math.sin(this.angle) * 20, '#fef08a', (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, 8 + Math.random() * 6, 2));
+
+                if (this === player) updateHUD();
+            }
+
+            throwGrenade(type, tx, ty) {
+                grenades.push(new Grenade(this.x, this.y, tx, ty, type, this));
+            }
+        }
+
+        // --- BULLET CLASS ---
+        class Bullet {
+            constructor(x, y, angle, damage, shooter) {
+                this.x = x;
+                this.y = y;
+                this.vx = Math.cos(angle) * 24;
+                this.vy = Math.sin(angle) * 24;
+                this.damage = damage;
+                this.shooter = shooter;
+                this.alive = true;
+                this.distanceTraveled = 0;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.distanceTraveled += 24;
+
+                if (this.distanceTraveled > 1400) {
+                    this.alive = false;
+                    return;
+                }
+
+                // Check Wall Collisions
+                for (let wall of MAP_WALLS) {
+                    if (this.x > wall.x && this.x < wall.x + wall.w && this.y > wall.y && this.y < wall.y + wall.h) {
+                        this.alive = false;
+                        // Spark effect on walls
+                        for (let i = 0; i < 3; i++) {
+                            particles.push(new Particle(this.x, this.y, '#fef08a', (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3, 10, 2));
+                        }
+                        return;
+                    }
+                }
+
+                // Check Crate Collisions
+                for (let crate of MAP_CRATES) {
+                    if (this.x > crate.x && this.x < crate.x + crate.w && this.y > crate.y && this.y < crate.y + crate.h) {
+                        this.alive = false;
+                        return;
+                    }
+                }
+
+                // Check Agent Hit Collisions
+                for (let agent of entities) {
+                    if (agent !== this.shooter && !agent.isDead) {
+                        let dist = Math.hypot(agent.x - this.x, agent.y - this.y);
+                        if (dist < agent.radius) {
+                            agent.takeDamage(this.damage, this.shooter);
+                            this.alive = false;
+                            return;
+                        }
+                    }
+                }
+            }
+
+            draw(ctx) {
+                ctx.strokeStyle = '#fef08a';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - this.vx * 0.8, this.y - this.vy * 0.8);
+                ctx.stroke();
+            }
+        }
+
+        // --- GRENADE CLASS ---
+        class Grenade {
+            constructor(startX, startY, targetX, targetY, type, thrower) {
+                this.x = startX;
+                this.y = startY;
+                this.targetX = targetX;
+                this.targetY = targetY;
+                this.type = type; // 'he' or 'flash'
+                this.thrower = thrower;
+                this.timer = 1.8; // seconds to explode
+
+                let dist = Math.hypot(targetX - startX, targetY - startY);
+                let speed = Math.min(dist / 25, 12);
+                let angle = Math.atan2(targetY - startY, targetX - startX);
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.friction = 0.96;
+            }
+
+            update(dt) {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vx *= this.friction;
+                this.vy *= this.friction;
+
+                this.timer -= dt;
+                if (this.timer <= 0) {
+                    this.explode();
+                }
+            }
+
+            explode() {
+                if (this.type === 'he') {
+                    soundFX.playExplosion();
+                    // Damage & Blast Radius
+                    for (let agent of entities) {
+                        if (!agent.isDead) {
+                            let dist = Math.hypot(agent.x - this.x, agent.y - this.y);
+                            if (dist < 220) {
+                                let dmg = (1 - dist / 220) * 95;
+                                agent.takeDamage(dmg, this.thrower);
+                            }
+                        }
+                    }
+                    // Explosion Smoke & Fire Particles
+                    for (let i = 0; i < 35; i++) {
+                        particles.push(new Particle(this.x, this.y, '#f97316', (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8, 30 + Math.random() * 20, 8));
+                    }
+                } else if (this.type === 'flash') {
+                    soundFX.playFlashbang();
+                    // Flash blinding affect
+                    for (let agent of entities) {
+                        if (!agent.isDead) {
+                            let dist = Math.hypot(agent.x - this.x, agent.y - this.y);
+                            if (dist < 400) {
+                                agent.flashDuration = 3.5 * (1 - dist / 400);
+                                if (agent === player) {
+                                    const flashOverlay = document.getElementById('flash-overlay');
+                                    flashOverlay.style.opacity = '1';
+                                    setTimeout(() => { flashOverlay.style.opacity = '0'; }, 2000);
+                                }
+                            }
+                        }
+                    }
+                }
+                grenades = grenades.filter(g => g !== this);
+            }
+
+            draw(ctx) {
+                ctx.fillStyle = this.type === 'he' ? '#ef4444' : '#38bdf8';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // --- PARTICLE & SOUND VISUALIZER EFFECTS ---
+        class Particle {
+            constructor(x, y, color, vx, vy, maxLife, size = 3) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.vx = vx;
+                this.vy = vy;
+                this.life = maxLife;
+                this.maxLife = maxLife;
+                this.size = size;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life--;
+            }
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.life / this.maxLife);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class SoundWave {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 10;
+                this.maxRadius = 160;
+                this.alpha = 0.6;
+            }
+            update() {
+                this.radius += 4;
+                this.alpha -= 0.015;
+            }
+            draw(ctx) {
+                if (this.alpha <= 0) return;
+                ctx.save();
+                ctx.strokeStyle = `rgba(255, 170, 0, ${this.alpha})`;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        // --- INITIALIZATION AND GAME SETUP ---
+        window.onload = () => {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            radarCanvas = document.getElementById('radarCanvas');
+            radarCtx = radarCanvas.getContext('2d');
+
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            // Input Listeners
+            window.addEventListener('keydown', e => {
+                keys[e.key.toLowerCase()] = true;
+                if (e.key === '1') selectSlot(1);
+                if (e.key === '2') selectSlot(2);
+                if (e.key === '3') selectSlot(3);
+                if (e.key === '4') selectSlot(4);
+                if (e.key.toLowerCase() === 'r' && player) player.reload();
+                if (e.key.toLowerCase() === 'b') toggleBuyMenu();
+            });
+            window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+            window.addEventListener('mousemove', e => {
+                mousePos.x = e.clientX;
+                mousePos.y = e.clientY;
+            });
+            window.addEventListener('mousedown', e => {
+                soundFX.init();
+                if (e.button === 0 && player && !player.isDead && !buyMenuOpen) {
+                    player.shoot(mousePos.worldX, mousePos.worldY);
+                }
+            });
+
+            requestAnimationFrame(gameLoop);
+        };
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        function selectFaction(faction) {
+            selectedFaction = faction;
+            document.getElementById('select-t').className = faction === 'T' 
+                ? 'cs-btn p-3 rounded-xl flex items-center justify-center gap-2 border-2 border-amber-500 text-amber-400 font-bold text-sm'
+                : 'cs-btn p-3 rounded-xl flex items-center justify-center gap-2 border-2 border-transparent text-gray-400 font-bold text-sm';
+            
+            document.getElementById('select-ct').className = faction === 'CT'
+                ? 'cs-btn cs-btn-ct p-3 rounded-xl flex items-center justify-center gap-2 border-2 border-blue-500 text-blue-400 font-bold text-sm'
+                : 'cs-btn cs-btn-ct p-3 rounded-xl flex items-center justify-center gap-2 border-2 border-transparent text-gray-400 font-bold text-sm';
+        }
+
+        function startGame() {
+            soundFX.init();
+            document.getElementById('main-menu').classList.add('hidden');
+            document.getElementById('hud-layer').classList.remove('hidden');
+
+            score = { T: 0, CT: 0 };
+            roundNumber = 1;
+            startNewRound();
+        }
+
+        function startNewRound() {
+            entities = [];
+            bullets = [];
+            grenades = [];
+            particles = [];
+            soundWaves = [];
+            bomb = null;
+
+            // Spawn Player
+            const isPlayerT = selectedFaction === 'T';
+            const playerSpawn = isPlayerT ? { x: 300, y: 300 } : { x: 1600, y: 1550 };
+            player = new Agent(1, selectedFaction, false, playerSpawn.x, playerSpawn.y);
+            player.name = "You";
+            entities.push(player);
+
+            // Spawn T Bots
+            for (let i = 0; i < 4; i++) {
+                let bot = new Agent(i + 2, 'T', true, 250 + Math.random() * 150, 250 + Math.random() * 150);
+                bot.name = `T-Bot ${i+1}`;
+                if (!isPlayerT && i === 0) bot.hasBomb = true; // Give bomb to T bot if player is CT
+                entities.push(bot);
+            }
+
+            // Spawn CT Bots
+            for (let i = 0; i < 4; i++) {
+                let bot = new Agent(i + 6, 'CT', true, 1500 + Math.random() * 150, 1500 + Math.random() * 150);
+                bot.name = `CT-Bot ${i+1}`;
+                entities.push(bot);
+            }
+
+            roundTimer = 110;
+            roundActive = true;
+            document.getElementById('bomb-status').classList.add('hidden');
+
+            if (roundTimeInterval) clearInterval(roundTimeInterval);
+            roundTimeInterval = setInterval(() => {
+                if (roundActive && (!bomb || !bomb.planted)) {
+                    roundTimer--;
+                    if (roundTimer <= 0) {
+                        endRound('CT', 'Time Expired - Counter-Terrorists Win');
+                    }
+                }
+            }, 1000);
+
+            updateHUD();
+        }
+
+        function selectSlot(slot) {
+            if (player && player.inventory[slot]) {
+                player.activeSlot = slot;
+                updateHUD();
+            }
+        }
+
+        // --- SHOP & BUY SYSTEM ---
+        function toggleBuyMenu() {
+            if (!roundActive) return;
+            buyMenuOpen = !buyMenuOpen;
+            const buyMenuEl = document.getElementById('buy-menu');
+            if (buyMenuOpen) {
+                document.getElementById('buy-balance').innerText = `$${player.money}`;
+                buyMenuEl.classList.remove('hidden');
+            } else {
+                buyMenuEl.classList.add('hidden');
+            }
+        }
+
+        function buyWeapon(gunId) {
+            const item = WEAPONS[gunId];
+            if (!item) return;
+            let cost = 1000;
+            if (gunId === 'ak47') cost = 2700;
+            if (gunId === 'm4a4') cost = 3100;
+            if (gunId === 'awp') cost = 4750;
+            if (gunId === 'deagle') cost = 700;
+
+            if (player.money >= cost) {
+                player.money -= cost;
+                player.inventory[item.slot] = { ...item, clip: item.clipSize, reserve: item.maxReserve };
+                player.activeSlot = item.slot;
+                updateHUD();
+                document.getElementById('buy-balance').innerText = `$${player.money}`;
+            }
+        }
+
+        function buyEquipment(eqId) {
+            if (eqId === 'he' && player.money >= 300) {
+                player.money -= 300;
+                player.inventory[4] = { ...WEAPONS.he, clip: 1, reserve: 1 };
+            } else if (eqId === 'flash' && player.money >= 200) {
+                player.money -= 200;
+                player.inventory[4] = { ...WEAPONS.flash, clip: 1, reserve: 2 };
+            } else if (eqId === 'armor' && player.money >= 1000) {
+                player.money -= 1000;
+                player.armor = 100;
+            }
+            updateHUD();
+            document.getElementById('buy-balance').innerText = `$${player.money}`;
+        }
+
+        // --- GAME LOOP & UPDATES ---
+        let lastTime = performance.now();
+
+        function gameLoop(now) {
+            let dt = (now - lastTime) / 1000;
+            lastTime = now;
+
+            update(dt);
+            render();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update(dt) {
+            if (!player) return;
+
+            // Update Camera Tracking
+            camera.x = player.x - canvas.width / 2;
+            camera.y = player.y - canvas.height / 2;
+
+            // Calculate Mouse World Coordinates
+            mousePos.worldX = mousePos.x + camera.x;
+            mousePos.worldY = mousePos.y + camera.y;
+
+            // Player Inputs & Controls
+            if (!player.isDead && !buyMenuOpen) {
+                let moveX = 0;
+                let moveY = 0;
+                if (keys['w'] || keys['arrowup']) moveY -= 1;
+                if (keys['s'] || keys['arrowdown']) moveY += 1;
+                if (keys['a'] || keys['arrowleft']) moveX -= 1;
+                if (keys['d'] || keys['arrowright']) moveX += 1;
+
+                if (moveX !== 0 || moveY !== 0) {
+                    let len = Math.hypot(moveX, moveY);
+                    let currentGun = player.getActiveWeapon();
+                    let speedMult = currentGun ? currentGun.speed : 1.0;
+                    player.move((moveX / len) * player.speed * speedMult, (moveY / len) * player.speed * speedMult);
+                }
+
+                // Aim angle
+                player.angle = Math.atan2(mousePos.worldY - player.y, mousePos.worldX - player.x);
+
+                // Continuous Automatic Fire for Rifles
+                if (keys[' '] || (player.getActiveWeapon() && player.getActiveWeapon().fireRate < 150 && keys['click'])) {
+                    player.shoot(mousePos.worldX, mousePos.worldY);
+                }
+
+                // Bomb Plant & Defuse Action Key [E]
+                handleBombInteraction(dt);
+            }
+
+            // Update Bomb Timers & Explosions
+            if (bomb && bomb.planted) {
+                bomb.timer -= dt;
+                soundFX.playBeep(900, 0.05);
+
+                if (bomb.timer <= 0) {
+                    soundFX.playExplosion();
+                    bomb.planted = false;
+                    endRound('T', 'Target Destroyed - Terrorists Win');
+                }
+            }
+
+            // Update All Game Entities & Objects
+            entities.forEach(ent => ent.update(dt));
+            bullets.forEach(b => b.update());
+            grenades.forEach(g => g.update(dt));
+            particles.forEach(p => p.update());
+            soundWaves.forEach(sw => sw.update());
+
+            // Cleanup dead elements
+            bullets = bullets.filter(b => b.alive);
+            particles = particles.filter(p => p.life > 0);
+            soundWaves = soundWaves.filter(sw => sw.alpha > 0);
+        }
+
+        // --- BOMB PLANT / DEFUSE MECHANIC ---
+        function handleBombInteraction(dt) {
+            const promptEl = document.getElementById('action-prompt');
+            const promptText = document.getElementById('action-text');
+            const progressEl = document.getElementById('action-progress');
+
+            let inSiteA = Math.hypot(player.x - BOMB_SITES.A.x, player.y - BOMB_SITES.A.y) < BOMB_SITES.A.radius;
+            let inSiteB = Math.hypot(player.x - BOMB_SITES.B.x, player.y - BOMB_SITES.B.y) < BOMB_SITES.B.radius;
+
+            // Plant Logic for Terrorist Player
+            if (player.team === 'T' && player.hasBomb && (!bomb || !bomb.planted) && (inSiteA || inSiteB)) {
+                promptEl.classList.remove('hidden');
+                promptText.innerText = "HOLD [E] TO PLANT C4 BOMB";
+
+                if (keys['e']) {
+                    player.actionProgress += dt * 33.3; // ~3 seconds to plant
+                    progressEl.style.width = `${player.actionProgress}%`;
+                    soundFX.playBeep(600, 0.04);
+
+                    if (player.actionProgress >= 100) {
+                        bomb = { x: player.x, y: player.y, planted: true, timer: 35, site: inSiteA ? 'A' : 'B' };
+                        player.hasBomb = false;
+                        player.actionProgress = 0;
+                        document.getElementById('bomb-status').classList.remove('hidden');
+                        promptEl.classList.add('hidden');
+                        soundFX.playBeep(1200, 0.4);
+                    }
+                } else {
+                    player.actionProgress = 0;
+                    progressEl.style.width = '0%';
+                }
+            } 
+            // Defuse Logic for Counter-Terrorists
+            else if (player.team === 'CT' && bomb && bomb.planted && Math.hypot(player.x - bomb.x, player.y - bomb.y) < 60) {
+                promptEl.classList.remove('hidden');
+                promptText.innerText = "HOLD [E] TO DEFUSE BOMB";
+
+                if (keys['e']) {
+                    let defuseSpeed = player.hasDefuseKit ? 25 : 12.5; // 4s with kit, 8s without
+                    player.actionProgress += dt * defuseSpeed;
+                    progressEl.style.width = `${player.actionProgress}%`;
+                    soundFX.playBeep(1100, 0.04);
+
+                    if (player.actionProgress >= 100) {
+                        bomb.planted = false;
+                        player.actionProgress = 0;
+                        promptEl.classList.add('hidden');
+                        endRound('CT', 'Bomb Defused - Counter-Terrorists Win');
+                    }
+                } else {
+                    player.actionProgress = 0;
+                    progressEl.style.width = '0%';
+                }
+            } else {
+                promptEl.classList.add('hidden');
+                player.actionProgress = 0;
+            }
+        }
+
+        // --- ROUND WIN / MATCH LOGIC ---
+        function checkRoundEnd() {
+            if (!roundActive) return;
+
+            const aliveT = entities.filter(e => e.team === 'T' && !e.isDead);
+            const aliveCT = entities.filter(e => e.team === 'CT' && !e.isDead);
+
+            if (aliveT.length === 0 && (!bomb || !bomb.planted)) {
+                endRound('CT', 'Terrorists Eliminated');
+            } else if (aliveCT.length === 0) {
+                endRound('T', 'Counter-Terrorists Eliminated');
+            }
+        }
+
+        function endRound(winnerTeam, reason) {
+            roundActive = false;
+            score[winnerTeam]++;
+
+            const banner = document.getElementById('round-banner');
+            const bannerTitle = document.getElementById('banner-title');
+            const bannerSub = document.getElementById('banner-sub');
+
+            bannerTitle.innerText = winnerTeam === 'T' ? 'TERRORISTS WIN' : 'COUNTER-TERRORISTS WIN';
+            bannerTitle.className = `text-3xl font-black tracking-widest uppercase ${winnerTeam === 'T' ? 'text-amber-400' : 'text-blue-400'}`;
+            bannerSub.innerText = reason;
+
+            banner.classList.remove('hidden', 'scale-95', 'opacity-0');
+            banner.classList.add('scale-100', 'opacity-100');
+
+            setTimeout(() => {
+                banner.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => {
+                    banner.classList.add('hidden');
+                    roundNumber++;
+                    startNewRound();
+                }, 300);
+            }, 3000);
+        }
+
+        // --- RENDER FUNCTION ---
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            // Camera Translation
+            ctx.translate(-camera.x, -camera.y);
+
+            // Render Ground Map Grid
+            ctx.fillStyle = '#12161f';
+            ctx.fillRect(0, 0, MAP_SIZE.width, MAP_SIZE.height);
+
+            // Subtle Floor Grid Lines
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < MAP_SIZE.width; x += 80) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, MAP_SIZE.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < MAP_SIZE.height; y += 80) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(MAP_SIZE.width, y);
+                ctx.stroke();
+            }
+
+            // Draw Bomb Sites (A & B)
+            drawBombSite(BOMB_SITES.A);
+            drawBombSite(BOMB_SITES.B);
+
+            // Draw Sound Waves
+            soundWaves.forEach(sw => sw.draw(ctx));
+
+            // Draw Walls
+            ctx.fillStyle = '#1e293b';
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 3;
+            MAP_WALLS.forEach(wall => {
+                ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
+                ctx.strokeRect(wall.x, wall.y, wall.w, wall.h);
+            });
+
+            // Draw Cover Crates
+            ctx.fillStyle = '#3f3f46';
+            ctx.strokeStyle = '#71717a';
+            MAP_CRATES.forEach(crate => {
+                ctx.fillRect(crate.x, crate.y, crate.w, crate.h);
+                ctx.strokeRect(crate.x, crate.y, crate.w, crate.h);
+                // Draw cross lines on crate
+                ctx.beginPath();
+                ctx.moveTo(crate.x, crate.y);
+                ctx.lineTo(crate.x + crate.w, crate.y + crate.h);
+                ctx.moveTo(crate.x + crate.w, crate.y);
+                ctx.lineTo(crate.x, crate.y + crate.h);
+                ctx.stroke();
+            });
+
+            // Draw Bomb on Ground (If Planted or Dropped)
+            if (bomb) {
+                ctx.save();
+                ctx.fillStyle = '#ef4444';
+                ctx.shadowColor = '#ef4444';
+                ctx.shadowBlur = bomb.planted ? 15 : 0;
+                ctx.fillRect(bomb.x - 8, bomb.y - 6, 16, 12);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 8px Chakra Petch';
+                ctx.fillText('C4', bomb.x - 5, bomb.y + 3);
+                ctx.restore();
+            }
+
+            // Draw Grenades & Particles
+            bullets.forEach(b => b.draw(ctx));
+            grenades.forEach(g => g.draw(ctx));
+            particles.forEach(p => p.draw(ctx));
+
+            // Draw Agents / Players
+            entities.forEach(agent => {
+                if (agent.isDead) {
+                    // Draw Dead Body Indicator
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
+                    ctx.beginPath();
+                    ctx.arc(agent.x, agent.y, agent.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                    return;
+                }
+
+                ctx.save();
+                ctx.translate(agent.x, agent.y);
+                ctx.rotate(agent.angle);
+
+                // Body Outline / Shadow
+                ctx.fillStyle = agent.team === 'T' ? '#d97706' : '#2563eb';
+                ctx.beginPath();
+                ctx.arc(0, 0, agent.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#ffffff';
+                ctx.stroke();
+
+                // Hands / Weapon barrel
+                ctx.fillStyle = '#475569';
+                ctx.fillRect(10, 4, 14, 5);
+
+                // Head Top Indicator
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.arc(0, 0, agent.radius * 0.55, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+
+                // Health Bar over bot head
+                if (agent !== player) {
+                    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                    ctx.fillRect(agent.x - 20, agent.y - 28, 40, 5);
+                    ctx.fillStyle = agent.team === 'T' ? '#f59e0b' : '#3b82f6';
+                    ctx.fillRect(agent.x - 20, agent.y - 28, (agent.health / 100) * 40, 5);
+                }
+            });
+
+            ctx.restore();
+
+            // Render Dynamic Crosshair at Mouse
+            drawCrosshair();
+
+            // Render Mini-Map Radar
+            renderRadar();
+        }
+
+        function drawBombSite(site) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.08)';
+            ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([8, 6]);
+            ctx.beginPath();
+            ctx.arc(site.x, site.y, site.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#f59e0b';
+            ctx.font = 'bold 22px Chakra Petch';
+            ctx.textAlign = 'center';
+            ctx.fillText(site.label, site.x, site.y + 7);
+            ctx.restore();
+        }
+
+        function drawCrosshair() {
+            if (!player || player.isDead) return;
+            const cx = mousePos.x;
+            const cy = mousePos.y;
+
+            ctx.save();
+            ctx.strokeStyle = '#00ffcc';
+            ctx.lineWidth = 2;
+            let gap = 5;
+            let len = 8;
+
+            // Recoil spread visual expansion
+            let gun = player.getActiveWeapon();
+            if (gun) gap += gun.spread * 120;
+
+            ctx.beginPath();
+            // Top
+            ctx.moveTo(cx, cy - gap);
+            ctx.lineTo(cx, cy - gap - len);
+            // Bottom
+            ctx.moveTo(cx, cy + gap);
+            ctx.lineTo(cx, cy + gap + len);
+            // Left
+            ctx.moveTo(cx - gap, cy);
+            ctx.lineTo(cx - gap - len, cy);
+            // Right
+            ctx.moveTo(cx + gap, cy);
+            ctx.lineTo(cx + gap + len, cy);
+            ctx.stroke();
+
+            // Center Dot
+            ctx.fillStyle = '#00ffcc';
+            ctx.beginPath();
+            ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        // --- MINI-MAP / RADAR RENDERER ---
+        function renderRadar() {
+            radarCtx.clearRect(0, 0, radarCanvas.width, radarCanvas.height);
+            radarCtx.fillStyle = '#090d14';
+            radarCtx.fillRect(0, 0, radarCanvas.width, radarCanvas.height);
+
+            if (!player) return;
+
+            const scale = radarCanvas.width / MAP_SIZE.width;
+
+            // Draw Map Walls on Radar
+            radarCtx.fillStyle = '#334155';
+            MAP_WALLS.forEach(w => {
+                radarCtx.fillRect(w.x * scale, w.y * scale, w.w * scale, w.h * scale);
+            });
+
+            // Draw Bomb Sites
+            radarCtx.fillStyle = 'rgba(245, 158, 11, 0.4)';
+            radarCtx.font = 'bold 9px Chakra Petch';
+            radarCtx.fillText('A', BOMB_SITES.A.x * scale - 3, BOMB_SITES.A.y * scale + 3);
+            radarCtx.fillText('B', BOMB_SITES.B.x * scale - 3, BOMB_SITES.B.y * scale + 3);
+
+            // Draw Entities
+            entities.forEach(ent => {
+                if (ent.isDead) return;
+                // Only show teammates or close/spotted enemies on radar
+                if (ent.team === player.team || ent === player) {
+                    radarCtx.fillStyle = ent.team === 'T' ? '#f59e0b' : '#3b82f6';
+                    radarCtx.beginPath();
+                    radarCtx.arc(ent.x * scale, ent.y * scale, ent === player ? 4 : 2.5, 0, Math.PI * 2);
+                    radarCtx.fill();
+                }
+            });
+
+            // Draw Bomb icon on radar if planted
+            if (bomb && bomb.planted) {
+                radarCtx.fillStyle = '#ef4444';
+                radarCtx.beginPath();
+                radarCtx.arc(bomb.x * scale, bomb.y * scale, 3.5, 0, Math.PI * 2);
+                radarCtx.fill();
+            }
+        }
+
+        // --- UI & HUD UPDATE FUNCTIONS ---
+        function updateHUD() {
+            if (!player) return;
+
+            // Values
+            document.getElementById('hp-val').innerText = Math.round(player.health);
+            document.getElementById('armor-val').innerText = Math.round(player.armor);
+            document.getElementById('money-val').innerText = player.money;
+
+            document.getElementById('score-t').innerText = score.T;
+            document.getElementById('score-ct').innerText = score.CT;
+
+            // Format Match Timer
+            let mins = Math.floor(roundTimer / 60);
+            let secs = roundTimer % 60;
+            document.getElementById('match-timer').innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+            // Active Weapon Info
+            const gun = player.getActiveWeapon();
+            if (gun) {
+                document.getElementById('active-weapon-name').innerText = gun.name;
+                document.getElementById('ammo-clip').innerText = gun.clip === Infinity ? '∞' : gun.clip;
+                document.getElementById('ammo-reserve').innerText = gun.maxReserve === Infinity ? '' : gun.reserve;
+            }
+
+            // Update Weapon Slots UI
+            for (let i = 1; i <= 4; i++) {
+                const slotEl = document.getElementById(`slot-${i}`);
+                if (player.inventory[i]) {
+                    slotEl.innerText = `${i}: ${player.inventory[i].name}`;
+                    slotEl.style.display = 'block';
+                    if (player.activeSlot === i) {
+                        slotEl.className = 'px-2.5 py-1 rounded bg-amber-500/20 border border-amber-500 text-amber-400 font-bold';
+                    } else {
+                        slotEl.className = 'px-2.5 py-1 rounded bg-gray-800 border border-gray-700 text-gray-400';
+                    }
+                } else {
+                    slotEl.style.display = 'none';
+                }
+            }
+
+            // Alive Indicators Count
+            const aliveT = entities.filter(e => e.team === 'T' && !e.isDead).length;
+            const aliveCT = entities.filter(e => e.team === 'CT' && !e.isDead).length;
+
+            document.getElementById('alive-t').innerHTML = Array(5).fill(0).map((_, i) => 
+                `<div class="w-2.5 h-2.5 rounded-full ${i < aliveT ? 'bg-amber-400' : 'bg-gray-700'}"></div>`
+            ).join('');
+
+            document.getElementById('alive-ct').innerHTML = Array(5).fill(0).map((_, i) => 
+                `<div class="w-2.5 h-2.5 rounded-full ${i < aliveCT ? 'bg-blue-400' : 'bg-gray-700'}"></div>`
+            ).join('');
+        }
+
+        function addKillFeed(killer, victim, weapon) {
+            const killFeed = document.getElementById('kill-feed');
+            const item = document.createElement('div');
+            item.className = 'cs-panel px-3 py-1 rounded border border-gray-700 text-xs flex items-center gap-2 animate-fade-in';
+            item.innerHTML = `<span class="font-bold text-gray-200">${killer}</span> 
+                              <span class="text-amber-400 font-extrabold text-[10px] uppercase">[${weapon}]</span> 
+                              <span class="font-bold text-gray-400">${victim}</span>`;
+            killFeed.prepend(item);
+
+            setTimeout(() => {
+                item.remove();
+            }, 4500);
+        }
+    </script>
+</body>
+</html>
